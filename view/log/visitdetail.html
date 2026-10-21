@@ -1,0 +1,299 @@
+{include file="common/header" /}
+<table id="visit_detail" lay-filter="test"></table>
+<script>
+    function formatSeconds(seconds) {
+        // 计算小时、分钟和剩余秒数
+        var hours = Math.floor(seconds / 3600);
+        var minutes = Math.floor((seconds % 3600) / 60);
+        var remainingSeconds = seconds % 60;
+
+        // 格式化为两位数的字符串
+        var formattedHours = ("0" + hours).slice(-2);
+        var formattedMinutes = ("0" + minutes).slice(-2);
+        var formattedSeconds = ("0" + remainingSeconds).slice(-2);
+
+        // 返回格式化后的时间字符串
+        return formattedHours + ":" + formattedMinutes + ":" + formattedSeconds;
+    }
+    function getWeekRange() {
+        var date = new Date();
+        var currentDayOfWeek = date.getDay(); // 获取当前日期是星期几
+
+        // 计算本周的第一天和最后一天
+        var startOfWeek = new Date(date.getFullYear(), date.getMonth(), date.getDate() - (currentDayOfWeek - 1));
+        var endOfWeek = new Date(date.getFullYear(), date.getMonth(), date.getDate() + (7 - currentDayOfWeek));
+
+        // 设置时间为 00:00:00
+        startOfWeek.setHours(0, 0, 0, 0);
+        endOfWeek.setHours(23, 59, 59, 999);
+
+        return [startOfWeek, endOfWeek];
+    }
+    function searchTable() {
+
+    }
+    function refreshTable() {
+
+    }
+    var currentDate = new Date().toLocaleDateString().replace(/\//g, '-');
+    var filerDate = "";//currentDate + " 00:00:00 ~ " + currentDate + " 23:59:59";
+    var filerIp = "";
+    var filerHuman = "";
+    var filerUrl = "";
+    var fileVisitType = "";
+    function reloadTable(tableIns, where) {
+        tableIns.reloadData({
+            where: where,
+            page: {
+                curr: 1 //重新从第 1 页开始
+            }
+        });
+    }
+    layui.use('table', function () {
+        var table = layui.table;
+        var tableIns = table.render({
+            elem: '#visit_detail',
+            url: '/log/visit_detail_data',
+            page: true,
+            limit: 100,
+            limits: [50, 100, 200, 300],
+            // skin: 'line',
+            even: true,
+            size: 'sm',
+            toolbar: '#toolbar',
+            totalRow: true,
+            cols: [
+                [ //表头
+                    {
+                        field: 'id',
+                        title: 'ID',
+                        width: 70,
+                        hide: true,
+                    }, {
+                        field: 'time',
+                        title: '时间',
+                        maxWidth: 70,
+                    }, {
+                        field: 'region',
+                        title: '地区',
+                        width: 70,
+                        hide: true,
+                    }, {
+                        field: 'ip',
+                        title: 'IP',
+                        width: 120,
+                        sort: true,
+                    }, {
+                        field: 'region',
+                        title: '地区',
+                        width: 100,
+                        align: 'center',
+                    }, {
+                        field: 'visitorType',
+                        title: '访客类型',
+                        width: 75,
+                        templet: function (d) {
+                            var color = "";
+                            var value = "新访客";
+                            if(d.visitorType == 1){
+                                color = "#ffb800";value = "老访客";
+                            }else if(d.visitorType == 2){
+                                color = "#31bdec";value = "爬虫";
+                            }else if(d.visitorType == 3){
+                                color = "#ff5722";value = "机器人";
+                            }
+                            return `<div style='color:${color}'}>${value}</div>`;
+                        },
+                        align: 'center',
+                    }, {
+                        field: 'srcUrl',
+                        title: '来源',
+                        cellMinWidth: 145
+                    }, {
+                        field: 'entryPage',
+                        title: '进入页面',
+                        cellMinWidth: 145,
+                        totalRow: '<span class="layui-badge-rim">总数: {{= d.TOTAL_ROW.visitor.total}}</span> <span class="layui-badge-rim">真人: {{= d.TOTAL_ROW.visitor.human}}</span> <span class="layui-badge-rim">人类占比: {{= d.TOTAL_ROW.visitor.prop}}</span>',
+                    }, {
+                        field: 'duration',
+                        title: '停留时间',
+                        width: 100,
+                        templet: function (d) {
+                            return formatSeconds(d.duration);
+                        }
+                    }, {
+                        field: 'browser',
+                        title: '浏览器',
+                        width: 150,
+                        totalRowText: "合计: ",
+                    }, {
+                        field: 'isHuman',
+                        title: '人类?',
+                        width: 70,
+                        align: 'center',
+                        totalRow: '{{= d.TOTAL_ROW.visitor.human}}',
+                        templet: function (d) {
+                            var color = "";
+                            var value = "";
+                            if(d.isHuman == 1){
+                                color = "#16b777";value = "是的";
+                            }else if(d.isHuman == 0){
+                                color = "#ff5722";value = "不是";
+                            }else if(d.isHuman == 2){
+                                color = "#31bdec"; // value = "未知";
+                            }
+                            return `<div style='color:${color}'}>${value}</div>`;
+                        },
+                    }, {
+                        field: 'dateTime',
+                        title: '日期时间',
+                        width: 145,
+                    },
+                ]
+            ],
+            done: function (res, curr, count) {
+                // 在表头中的日期时间选择器
+                var laydate = layui.laydate;
+                laydate.render({
+                    elem: '#datetimepicker',
+                    value: filerDate,
+                    range: "~",
+                    type: 'datetime',
+                    rangeLinked: true,
+                    fullPanel: true,
+                    min: '2023-12-28 00:00:00',
+                    max: 0,
+                    theme: 'molv',
+                    shortcuts: [
+                        {
+                            text: "1小时",
+                            value: function () {
+                                var now = new Date();
+                                return [
+                                    now.setHours(now.getHours() - 1),
+                                    new Date(),
+                                ];
+                            }
+                        },
+                        {
+                            text: "昨天",
+                            value: function () {
+                                var date = new Date();
+                                date.setDate(date.getDate() - 1);
+                                var year = date.getFullYear();
+                                var month = date.getMonth();
+                                var day = date.getDate();
+                                return [
+                                    new Date(year, month, day),
+                                    new Date(year, month, day, 23, 59, 59),
+                                ];
+                            }
+                        }, {
+                            text: "今天",
+                            value: function () {
+                                var date = new Date();
+                                var year = date.getFullYear();
+                                var month = date.getMonth();
+                                var day = date.getDate();
+                                return [
+                                    new Date(year, month, day),
+                                    new Date(year, month, day, 23, 59, 59),
+                                ];
+                            }
+                        }, {
+                            text: "本周",
+                            value: function () {
+                                return getWeekRange();
+                            }
+                        }, {
+                            text: "上个月",
+                            value: function () {
+                                var date = new Date();
+                                var year = date.getFullYear();
+                                var month = date.getMonth();
+                                return [
+                                    new Date(year, month - 1, 1),
+                                    new Date(year, month, 0, 23, 59, 59)
+                                ];
+                            }
+                        },
+                        {
+                            text: "这个月",
+                            value: function () {
+                                var date = new Date();
+                                var year = date.getFullYear();
+                                var month = date.getMonth();
+                                return [
+                                    new Date(year, month, 1),
+                                    new Date(year, month + 1, 0, 23, 59, 59)
+                                ];
+                            }
+                        },
+                        {
+                            text: "下个月",
+                            value: function () {
+                                var date = new Date();
+                                var year = date.getFullYear();
+                                var month = date.getMonth();
+                                return [
+                                    new Date(year, month + 1, 1),
+                                    new Date(year, month + 2, 0, 23, 59, 59)
+                                ];
+                            }
+                        }
+                    ],
+                });
+                layui.$('#ipinput').val(filerIp);
+                layui.$('#pageUrl').val(filerUrl);
+                layui.$('#humanCheck').val(filerHuman);
+                layui.$('#visitTypeCheck').val(fileVisitType);
+                var form = layui.form;
+                form.render('checkbox');
+                refreshTable = function () {
+                    reloadTable(tableIns, {});
+                }
+                searchTable = function () {
+                    filerDate = layui.$('#datetimepicker').val();
+                    filerIp = layui.$('#ipinput').val();
+                    filerUrl = layui.$('#pageUrl').val();
+                    filerHuman = layui.$('#humanCheck').val();
+                    fileVisitType = layui.$('#visitTypeCheck').val();
+                    reloadTable(tableIns, { dateTime: filerDate, ip: filerIp, isHuman: filerHuman || "", pageUrl: filerUrl, visitType: fileVisitType || "" });
+                }
+            }
+        });
+    });
+</script>
+<script type="text/html" id="toolbar">
+    <button class="layui-btn layui-btn-sm layui-bg-blue" id="refresh-btn" onclick="refreshTable()"><i class="layui-icon layui-icon-refresh"></i>刷新</button>
+    <div class="layui-inline" style="width: 300px;">
+        <input type="text" class="layui-input" id="datetimepicker" placeholder="日期">
+    </div>
+    <div class="layui-inline">
+        <input type="text" class="layui-input" id="ipinput" placeholder="ip筛选">
+    </div>
+    <div class="layui-inline">
+        <input type="text" class="layui-input" id="pageUrl" placeholder="url筛选">
+    </div>
+    <div class="layui-inline" style="min-width:78px;">
+        <select name="visitTypeCheck" id='visitTypeCheck'>
+          <option value="">访客类型</option>
+          <option value="0">新访客</option>
+          <option value="1">老访客</option>
+          <option value="2">爬虫</option>
+          <option value="3">机器人</option>
+        </select>
+    </div>
+    <div class="layui-inline" style="min-width:78px;">
+        <select name="isHuman" id='humanCheck'>
+          <option value="">人类?</option>
+          <option value="0">不是</option>
+          <option value="1">是</option>
+          <option value="2">未知</option>
+        </select>
+    </div>
+    <button class="layui-btn layui-btn-sm" id="search-btn" onclick="searchTable()"><i class="layui-icon layui-icon-search"></i>搜索</button>
+</script>
+</body>
+
+</html>

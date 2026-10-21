@@ -1,0 +1,16 @@
+/.env
+/.env.*
+!/.env.example
+/auth.json
+/vendor/
+/runtime/
+/.idea/
+/.vscode/
+.DS_Store
+*.log
+/sql/*
+!/sql/schema.sql
+!/sql/README.md
+/db/*.mmdb
+/public/log/*
+!/public/log/UpdateLog.txt
